@@ -1,0 +1,4814 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ジム男性ロッカー利用率</title>
+<style>
+  :root {
+    --border: #e0e0e0;
+    --border-strong: #bbb;
+    --text: #222;
+    --muted: #777;
+    --bg: #fff;
+    --row-alt: #fafafa;
+    --goable-outline: #2b6cb0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px 0; }
+  h2 { font-size: 15px; margin: 24px 0 8px 0; padding-bottom: 4px; border-bottom: 2px solid var(--border); }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  .meta b { color: var(--text); }
+  .legend {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted);
+    margin: 8px 0 12px 0;
+    flex-wrap: wrap;
+  }
+  .legend-bar {
+    width: 140px; height: 12px; border-radius: 2px;
+    background: linear-gradient(to right, rgb(110,200,110), rgb(240,225,110), rgb(210,70,80));
+  }
+  .legend .outline-sample {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--goable-outline); border-radius: 2px;
+    vertical-align: middle;
+  }
+
+  /* Heatmap: sticky header row + sticky first column, scroll body. */
+  .heatmap-wrap {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: auto;
+    max-height: 70vh;
+    -webkit-overflow-scrolling: touch;
+  }
+  table.heatmap {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 11px;
+    width: 100%;
+    min-width: 340px;
+  }
+  table.heatmap th, table.heatmap td {
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  table.heatmap thead th {
+    position: sticky; top: 0; z-index: 3;
+    background: #f5f5f5;
+    font-weight: 600;
+    height: 28px;
+    min-width: 34px;
+  }
+  table.heatmap thead th.time-col {
+    left: 0; z-index: 4;
+    min-width: 46px; width: 46px;
+    border-right: 2px solid var(--border-strong);
+  }
+  table.heatmap tbody th.time-col {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--bg);
+    font-weight: 500;
+    font-size: 10px;
+    color: var(--muted);
+    padding: 0 6px;
+    text-align: right;
+    min-width: 46px; width: 46px;
+    white-space: nowrap;
+    border-right: 2px solid var(--border-strong);
+  }
+  table.heatmap tbody th.time-col.hour {
+    color: var(--text);
+    font-weight: 700;
+    font-size: 11px;
+  }
+  table.heatmap tbody tr.hour-start th.time-col,
+  table.heatmap tbody tr.hour-start td {
+    border-top: 1px solid var(--border-strong);
+  }
+  table.heatmap td.cell {
+    height: 18px;
+    min-width: 34px;
+    font-weight: 600;
+    color: #111;
+    font-size: 10px;
+  }
+  table.heatmap td.cell.empty { color: transparent; }
+  /* User-goable slots (user availability × operating): blue outline. */
+  table.heatmap td.cell.goable {
+    box-shadow: inset 0 0 0 1.5px var(--goable-outline);
+  }
+  /* Non-operating (セルフ/定休): faint diagonal hatching overlay. Numbers remain fully readable. */
+  table.heatmap td.cell:not(.operating) {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(255,255,255,0) 0 3px,
+      rgba(0,0,0,0.08) 3px 4px
+    );
+  }
+
+  /* Ranking / summary tables. */
+  table.rank { border-collapse: collapse; font-size: 13px; width: 100%; max-width: 560px; }
+  table.rank th, table.rank td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+  table.rank th { background: #f5f5f5; font-weight: 600; font-size: 12px; }
+  table.rank td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.rank tr:nth-child(even) td { background: var(--row-alt); }
+
+  details { margin-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; font-size: 13px; padding: 6px 0; }
+  table.recent { border-collapse: collapse; font-size: 11px; width: 100%; }
+  table.recent th, table.recent td { border: 1px solid var(--border); padding: 4px 6px; text-align: left; }
+  table.recent th { background: #f5f5f5; }
+
+  .note { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  @media (max-width: 420px) {
+    body { padding: 8px; font-size: 13px; }
+    h1 { font-size: 16px; }
+    table.heatmap { font-size: 10px; }
+    table.heatmap thead th, table.heatmap tbody th.time-col {
+      min-width: 40px; width: 40px;
+    }
+    table.heatmap td.cell { min-width: 30px; height: 16px; font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>ジム男性ロッカー利用率</h1>
+<div class="meta">
+  <b>2026-04-20 21:45</b> 更新 ／ 2026-04-18T17:15 〜 2026-04-20T21:45 ／
+  211 サンプル ／ 成功率 99.1%
+</div>
+
+<div class="legend">
+  <span class="legend-bar"></span>
+  <span>空 ← → 混</span>
+  <span style="margin-left:12px"><span class="outline-sample"></span> 行ける時間帯</span>
+  <span style="margin-left:12px">斜線 = 営業時間外（セルフ/定休）</span>
+</div>
+
+<h2>ヒートマップ（全時間×全曜日）</h2>
+<div class="heatmap-wrap">
+<table class="heatmap" aria-label="時刻×曜日 利用率ヒートマップ">
+  <thead>
+    <tr>
+      <th class="time-col">時刻</th>
+      
+        <th>月</th>
+      
+        <th>火</th>
+      
+        <th>水</th>
+      
+        <th>木</th>
+      
+        <th>金</th>
+      
+        <th>土</th>
+      
+        <th>日</th>
+      
+        <th>祝</th>
+      
+    </tr>
+  </thead>
+  <tbody>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">00:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="月 00:00 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 00:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 00:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 00:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 00:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 00:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(149,207,110)"
+            title="日 00:00 — 15% (n=1)">15</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 00:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 00:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 00:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 00:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 00:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 00:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 00:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 00:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 00:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 00:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 00:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 00:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 00:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 00:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 00:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 00:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 00:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 00:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 00:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 00:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 00:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 00:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 00:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 00:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 00:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">01:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 01:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 01:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 01:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 01:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 01:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 01:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 01:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 01:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 01:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 01:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 01:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 01:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 01:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 01:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 01:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 01:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 01:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 01:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 01:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 01:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 01:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 01:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 01:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 01:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 01:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 01:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 01:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 01:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 01:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 01:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 01:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 01:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">02:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 02:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 02:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 02:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 02:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 02:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 02:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 02:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 02:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 02:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 02:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 02:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 02:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 02:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 02:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 02:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 02:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 02:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 02:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 02:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 02:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 02:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 02:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 02:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 02:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 02:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 02:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 02:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 02:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 02:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 02:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 02:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 02:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">03:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 03:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 03:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 03:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 03:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 03:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 03:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 03:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 03:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 03:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 03:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 03:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 03:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 03:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 03:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 03:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 03:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 03:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 03:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 03:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 03:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 03:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 03:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 03:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 03:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 03:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 03:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 03:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 03:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 03:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 03:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 03:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 03:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">04:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 04:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 04:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 04:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 04:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 04:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 04:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 04:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 04:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 04:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 04:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 04:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 04:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 04:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 04:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 04:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 04:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 04:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 04:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 04:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 04:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 04:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 04:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 04:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 04:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 04:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 04:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 04:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 04:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 04:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 04:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 04:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 04:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">05:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 05:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 05:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 05:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 05:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 05:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 05:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 05:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 05:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 05:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 05:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 05:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 05:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 05:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 05:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 05:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 05:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 05:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 05:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 05:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 05:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 05:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 05:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 05:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 05:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 05:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 05:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 05:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 05:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 05:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 05:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 05:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 05:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">06:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 06:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 06:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 06:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 06:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 06:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 06:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 06:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 06:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 06:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 06:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 06:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 06:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 06:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 06:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 06:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 06:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 06:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 06:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 06:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 06:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 06:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 06:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 06:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 06:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 06:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 06:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 06:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 06:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 06:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 06:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 06:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 06:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">07:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 07:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 07:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 07:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 07:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 07:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 07:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 07:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 07:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 07:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 07:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 07:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 07:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 07:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 07:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 07:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 07:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 07:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 07:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 07:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 07:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 07:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 07:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 07:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 07:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 07:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 07:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 07:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 07:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 07:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 07:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 07:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 07:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">08:00</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 08:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 08:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 08:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 08:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 08:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 08:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 08:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 08:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 08:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 08:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 08:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 08:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 08:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 08:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 08:15 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 08:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 08:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 08:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 08:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 08:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 08:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 08:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 08:30 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 08:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="月 08:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 08:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 08:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 08:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 08:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 08:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(110,200,110)"
+            title="日 08:45 — 0% (n=1)">0</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 08:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">09:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(110,200,110)"
+            title="月 09:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 09:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 09:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 09:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 09:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 09:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(110,200,110)"
+            title="日 09:00 — 0% (n=1)">0</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 09:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(130,204,110)"
+            title="月 09:15 — 8% (n=1)">8</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 09:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 09:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 09:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 09:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 09:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(128,203,110)"
+            title="日 09:15 — 7% (n=1)">7</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 09:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(151,208,110)"
+            title="月 09:30 — 16% (n=1)">16</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 09:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 09:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 09:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 09:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 09:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(138,205,110)"
+            title="日 09:30 — 11% (n=1)">11</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 09:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(162,210,110)"
+            title="月 09:45 — 20% (n=1)">20</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 09:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 09:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 09:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 09:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 09:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(146,207,110)"
+            title="日 09:45 — 14% (n=1)">14</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 09:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">10:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(169,211,110)"
+            title="月 10:00 — 23% (n=1)">23</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 10:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 10:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 10:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 10:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 10:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(159,209,110)"
+            title="日 10:00 — 19% (n=1)">19</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 10:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(182,214,110)"
+            title="月 10:15 — 28% (n=1)">28</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 10:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 10:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 10:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 10:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 10:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(164,210,110)"
+            title="日 10:15 — 21% (n=1)">21</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 10:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(185,214,110)"
+            title="月 10:30 — 29% (n=1)">29</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 10:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 10:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 10:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 10:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 10:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(169,211,110)"
+            title="日 10:30 — 23% (n=1)">23</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 10:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(188,215,110)"
+            title="月 10:45 — 30% (n=1)">30</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 10:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 10:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 10:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 10:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 10:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(175,212,110)"
+            title="日 10:45 — 25% (n=1)">25</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 10:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">11:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(188,215,110)"
+            title="月 11:00 — 30% (n=1)">30</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 11:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 11:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 11:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 11:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 11:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="日 11:00 — 28% (n=1)">28</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 11:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 11:15 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 11:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 11:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 11:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 11:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 11:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="日 11:15 — 28% (n=1)">28</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 11:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(193,216,110)"
+            title="月 11:30 — 32% (n=1)">32</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 11:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 11:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 11:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 11:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 11:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="日 11:30 — 28% (n=1)">28</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 11:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(193,216,110)"
+            title="月 11:45 — 32% (n=1)">32</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 11:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 11:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 11:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 11:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 11:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="日 11:45 — 30% (n=1)">30</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 11:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">12:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(188,215,110)"
+            title="月 12:00 — 30% (n=1)">30</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 12:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 12:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 12:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 12:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 12:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(185,214,110)"
+            title="日 12:00 — 29% (n=1)">29</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 12:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(182,214,110)"
+            title="月 12:15 — 28% (n=1)">28</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 12:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 12:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 12:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 12:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 12:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="日 12:15 — 30% (n=1)">30</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 12:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(180,213,110)"
+            title="月 12:30 — 27% (n=1)">27</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 12:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 12:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 12:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 12:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 12:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="日 12:30 — 28% (n=1)">28</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 12:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(180,213,110)"
+            title="月 12:45 — 27% (n=1)">27</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 12:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 12:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 12:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 12:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 12:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(190,215,110)"
+            title="日 12:45 — 31% (n=1)">31</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 12:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">13:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(182,214,110)"
+            title="月 13:00 — 28% (n=1)">28</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 13:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 13:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 13:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 13:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 13:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="日 13:00 — 28% (n=1)">28</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 13:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(182,214,110)"
+            title="月 13:15 — 28% (n=1)">28</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 13:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 13:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 13:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 13:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 13:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(180,213,110)"
+            title="日 13:15 — 27% (n=1)">27</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 13:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(188,215,110)"
+            title="月 13:30 — 30% (n=1)">30</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 13:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 13:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 13:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 13:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 13:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="日 13:30 — 28% (n=1)">28</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 13:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(193,216,110)"
+            title="月 13:45 — 32% (n=1)">32</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 13:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 13:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 13:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 13:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 13:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="日 13:45 — 30% (n=1)">30</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 13:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">14:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 14:00 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 14:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 14:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 14:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 14:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 14:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="日 14:00 — 30% (n=1)">30</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 14:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 14:15 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 14:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 14:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 14:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 14:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 14:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(190,215,110)"
+            title="日 14:15 — 31% (n=1)">31</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 14:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 14:30 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 14:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 14:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 14:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 14:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 14:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(195,216,110)"
+            title="日 14:30 — 33% (n=1)">33</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 14:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(193,216,110)"
+            title="月 14:45 — 32% (n=1)">32</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 14:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 14:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 14:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 14:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 14:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(195,216,110)"
+            title="日 14:45 — 33% (n=1)">33</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 14:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">15:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 15:00 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 15:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 15:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 15:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 15:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 15:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(201,217,110)"
+            title="日 15:00 — 35% (n=1)">35</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 15:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 15:15 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 15:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 15:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 15:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 15:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 15:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(208,219,110)"
+            title="日 15:15 — 38% (n=1)">38</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 15:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 15:30 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 15:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 15:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 15:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 15:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 15:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(211,219,110)"
+            title="日 15:30 — 39% (n=1)">39</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 15:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 15:45 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 15:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 15:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 15:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 15:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 15:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(214,220,110)"
+            title="日 15:45 — 40% (n=1)">40</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 15:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">16:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(190,215,110)"
+            title="月 16:00 — 31% (n=1)">31</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 16:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 16:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 16:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 16:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 16:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(219,221,110)"
+            title="日 16:00 — 42% (n=1)">42</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 16:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(177,213,110)"
+            title="月 16:15 — 26% (n=1)">26</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 16:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 16:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 16:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 16:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 16:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(221,221,110)"
+            title="日 16:15 — 43% (n=1)">43</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 16:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(175,212,110)"
+            title="月 16:30 — 25% (n=1)">25</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 16:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 16:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 16:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 16:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 16:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(219,221,110)"
+            title="日 16:30 — 42% (n=1)">42</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 16:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(172,212,110)"
+            title="月 16:45 — 24% (n=1)">24</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 16:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 16:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 16:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 16:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 16:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(219,221,110)"
+            title="日 16:45 — 42% (n=1)">42</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 16:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">17:00</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(169,211,110)"
+            title="月 17:00 — 23% (n=1)">23</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 17:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 17:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 17:00 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 17:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="土 17:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(221,221,110)"
+            title="日 17:00 — 43% (n=1)">43</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 17:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(169,211,110)"
+            title="月 17:15 — 23% (n=1)">23</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 17:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 17:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 17:15 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 17:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(219,221,110)"
+            title="土 17:15 — 42% (n=1)">42</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(221,221,110)"
+            title="日 17:15 — 43% (n=1)">43</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 17:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(175,212,110)"
+            title="月 17:30 — 25% (n=1)">25</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 17:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 17:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 17:30 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 17:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(219,221,110)"
+            title="土 17:30 — 42% (n=1)">42</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(224,222,110)"
+            title="日 17:30 — 44% (n=1)">44</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 17:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell operating"
+            style="background:rgb(172,212,110)"
+            title="月 17:45 — 24% (n=1)">24</td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="火 17:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="水 17:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 17:45 — データなし"></td>
+      
+        <td class="cell empty operating"
+            style="background:#f1f1f1"
+            title="金 17:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(214,220,110)"
+            title="土 17:45 — 40% (n=2)">40</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(227,222,110)"
+            title="日 17:45 — 45% (n=1)">45</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 17:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">18:00</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(167,211,110)"
+            title="月 18:00 — 22% (n=1)">22</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 18:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 18:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 18:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 18:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(206,218,110)"
+            title="土 18:00 — 37% (n=1)">37</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(216,220,110)"
+            title="日 18:00 — 41% (n=1)">41</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 18:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(169,211,110)"
+            title="月 18:15 — 23% (n=1)">23</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 18:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 18:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 18:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 18:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(203,218,110)"
+            title="土 18:15 — 36% (n=1)">36</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(211,219,110)"
+            title="日 18:15 — 39% (n=1)">39</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 18:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(175,212,110)"
+            title="月 18:30 — 25% (n=1)">25</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 18:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 18:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 18:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 18:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(201,217,110)"
+            title="土 18:30 — 35% (n=1)">35</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(206,218,110)"
+            title="日 18:30 — 37% (n=1)">37</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 18:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(177,213,110)"
+            title="月 18:45 — 26% (n=1)">26</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 18:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 18:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 18:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 18:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(190,215,110)"
+            title="土 18:45 — 31% (n=2)">31</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(211,219,110)"
+            title="日 18:45 — 39% (n=1)">39</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 18:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">19:00</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="月 19:00 — 28% (n=1)">28</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 19:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 19:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 19:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 19:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="土 19:00 — 30% (n=1)">30</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(211,219,110)"
+            title="日 19:00 — 39% (n=1)">39</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 19:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(193,216,110)"
+            title="月 19:15 — 32% (n=1)">32</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 19:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 19:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 19:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 19:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="土 19:15 — 28% (n=1)">28</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(201,217,110)"
+            title="日 19:15 — 35% (n=1)">35</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 19:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(203,218,110)"
+            title="月 19:30 — 36% (n=1)">36</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 19:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 19:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 19:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 19:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(190,215,110)"
+            title="土 19:30 — 31% (n=1)">31</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(190,215,110)"
+            title="日 19:30 — 31% (n=1)">31</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 19:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(206,218,110)"
+            title="月 19:45 — 37% (n=1)">37</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 19:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 19:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 19:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 19:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="土 19:45 — 30% (n=1)">30</td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(180,213,110)"
+            title="日 19:45 — 27% (n=1)">27</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="祝 19:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">20:00</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(201,217,110)"
+            title="月 20:00 — 35% (n=1)">35</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 20:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 20:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 20:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 20:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="土 20:00 — 28% (n=1)">28</td>
+      
+        <td class="cell"
+            style="background:rgb(162,210,110)"
+            title="日 20:00 — 20% (n=1)">20</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 20:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(206,218,110)"
+            title="月 20:15 — 37% (n=1)">37</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 20:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 20:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 20:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 20:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(180,213,110)"
+            title="土 20:15 — 27% (n=1)">27</td>
+      
+        <td class="cell"
+            style="background:rgb(149,207,110)"
+            title="日 20:15 — 15% (n=1)">15</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 20:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(214,220,110)"
+            title="月 20:30 — 40% (n=1)">40</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 20:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 20:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 20:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 20:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(177,213,110)"
+            title="土 20:30 — 26% (n=1)">26</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 20:30 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 20:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(203,218,110)"
+            title="月 20:45 — 36% (n=1)">36</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 20:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 20:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 20:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 20:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(185,214,110)"
+            title="土 20:45 — 29% (n=1)">29</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 20:45 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 20:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">21:00</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(198,217,110)"
+            title="月 21:00 — 34% (n=1)">34</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 21:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 21:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 21:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 21:00 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="土 21:00 — 30% (n=1)">30</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 21:00 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 21:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(195,216,110)"
+            title="月 21:15 — 33% (n=1)">33</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 21:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 21:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 21:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 21:15 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(190,215,110)"
+            title="土 21:15 — 31% (n=1)">31</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 21:15 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 21:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(188,215,110)"
+            title="月 21:30 — 30% (n=1)">30</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 21:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 21:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 21:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 21:30 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(182,214,110)"
+            title="土 21:30 — 28% (n=1)">28</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 21:30 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 21:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell goable operating"
+            style="background:rgb(190,215,110)"
+            title="月 21:45 — 31% (n=1)">31</td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 21:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 21:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 21:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 21:45 — データなし"></td>
+      
+        <td class="cell goable operating"
+            style="background:rgb(180,213,110)"
+            title="土 21:45 — 27% (n=1)">27</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 21:45 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 21:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">22:00</th>
+      
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="月 22:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 22:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 22:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 22:00 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 22:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(172,212,110)"
+            title="土 22:00 — 24% (n=1)">24</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 22:00 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 22:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="月 22:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 22:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 22:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 22:15 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 22:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 22:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 22:15 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 22:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="月 22:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 22:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 22:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 22:30 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 22:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="土 22:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 22:30 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 22:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="月 22:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="火 22:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="水 22:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 22:45 — データなし"></td>
+      
+        <td class="cell empty goable operating"
+            style="background:#f1f1f1"
+            title="金 22:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(149,207,110)"
+            title="土 22:45 — 15% (n=1)">15</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 22:45 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 22:45 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="hour-start">
+      
+        <th class="time-col hour">23:00</th>
+      
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="月 23:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 23:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 23:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 23:00 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 23:00 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(149,207,110)"
+            title="土 23:00 — 15% (n=1)">15</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 23:00 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 23:00 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:15</th>
+      
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="月 23:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 23:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 23:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 23:15 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 23:15 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(149,207,110)"
+            title="土 23:15 — 15% (n=1)">15</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 23:15 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 23:15 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:30</th>
+      
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="月 23:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 23:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 23:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 23:30 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 23:30 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(149,207,110)"
+            title="土 23:30 — 15% (n=1)">15</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 23:30 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 23:30 — データなし"></td>
+      
+    </tr>
+    
+    <tr class="">
+      
+        <th class="time-col">:45</th>
+      
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="月 23:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="火 23:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="水 23:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="木 23:45 — データなし"></td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="金 23:45 — データなし"></td>
+      
+        <td class="cell"
+            style="background:rgb(149,207,110)"
+            title="土 23:45 — 15% (n=1)">15</td>
+      
+        <td class="cell"
+            style="background:rgb(146,207,110)"
+            title="日 23:45 — 14% (n=1)">14</td>
+      
+        <td class="cell empty"
+            style="background:#f1f1f1"
+            title="祝 23:45 — データなし"></td>
+      
+    </tr>
+    
+  </tbody>
+</table>
+</div>
+<div class="note">※ 斜線セル=営業時間外（月火水金 23:00+、土 22:00+、日祝 20:00+、木曜終日）。OCRで取れた数字は営業時間外でも表示。</div>
+
+<h2>空いてる時間帯 TOP20（行ける時間 / n≥3）</h2>
+
+<p>データ不足です。もう少し溜まったら再生成してください。</p>
+
+
+<h2>曜日別サマリー（行ける時間のみ）</h2>
+<table class="rank">
+  <thead><tr><th>区分</th><th>平均</th><th>中央</th><th>n</th></tr></thead>
+  <tbody>
+  
+    <tr>
+      <td>平日 月</td>
+      <td class="num">31.6%</td>
+      <td class="num">32%</td>
+      <td class="num">16</td>
+    </tr>
+  
+    <tr>
+      <td>平日 火</td>
+      <td class="num">-%</td>
+      <td class="num">-%</td>
+      <td class="num">0</td>
+    </tr>
+  
+    <tr>
+      <td>平日 水</td>
+      <td class="num">-%</td>
+      <td class="num">-%</td>
+      <td class="num">0</td>
+    </tr>
+  
+    <tr>
+      <td>平日 金</td>
+      <td class="num">-%</td>
+      <td class="num">-%</td>
+      <td class="num">0</td>
+    </tr>
+  
+    <tr>
+      <td>土</td>
+      <td class="num">32.3%</td>
+      <td class="num">30%</td>
+      <td class="num">21</td>
+    </tr>
+  
+    <tr>
+      <td>日</td>
+      <td class="num">31.3%</td>
+      <td class="num">31%</td>
+      <td class="num">44</td>
+    </tr>
+  
+    <tr>
+      <td>祝日</td>
+      <td class="num">-%</td>
+      <td class="num">-%</td>
+      <td class="num">0</td>
+    </tr>
+  
+  </tbody>
+</table>
+
+<details>
+<summary>直近7日間の生データ（最新100件）</summary>
+<table class="recent">
+<thead><tr><th>時刻</th><th>曜日</th><th>祝</th><th>%</th><th>status</th></tr></thead>
+<tbody>
+
+<tr>
+  <td>04-20T21:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T21:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>30</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T21:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>33</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T21:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>34</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T20:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>36</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T20:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>40</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T20:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>37</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T20:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>35</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T19:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>37</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T19:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>36</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T19:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>32</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T19:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>28</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T18:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>26</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T18:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>25</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T18:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>23</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T18:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>22</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T17:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>24</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T17:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>25</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T17:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>23</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T17:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>23</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T16:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>24</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T16:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>25</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T16:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>26</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T16:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T15:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T15:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T15:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T15:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T14:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>32</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T14:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T14:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T14:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T13:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>32</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T13:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>30</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T13:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>28</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T13:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>28</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T12:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>27</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T12:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>27</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T12:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>28</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T12:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>30</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T11:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>32</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T11:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>32</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T11:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>31</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T11:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>30</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T10:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>30</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T10:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>29</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T10:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>28</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T10:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>23</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T09:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>20</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T09:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>16</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T09:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>8</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-20T09:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T08:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T08:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T08:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T08:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T07:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T07:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T07:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T07:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T06:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T06:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T06:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T06:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T05:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T05:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T05:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T05:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T04:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T04:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T04:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T04:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T03:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T03:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T03:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T03:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T02:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T02:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T02:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T02:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T01:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T01:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T01:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T01:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T00:45</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T00:30</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T00:15</td>
+  <td>Mon</td>
+  <td></td>
+  <td>0</td>
+  <td>ok_zero</td>
+</tr>
+
+<tr>
+  <td>04-20T00:00</td>
+  <td>Mon</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T23:45</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T23:30</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T23:15</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T23:00</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T22:45</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T22:30</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T22:15</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T22:00</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T21:45</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T21:30</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T21:15</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+<tr>
+  <td>04-19T21:00</td>
+  <td>Sun</td>
+  <td></td>
+  <td>14</td>
+  <td>ok</td>
+</tr>
+
+</tbody>
+</table>
+</details>
+
+</body>
+</html>
